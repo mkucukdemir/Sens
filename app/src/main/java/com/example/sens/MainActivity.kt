@@ -9,6 +9,7 @@ import android.hardware.SensorManager
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.viewModels
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -17,6 +18,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -30,6 +32,8 @@ import com.example.sens.ui.theme.SensTheme
 import java.io.File
 import java.io.FileWriter
 import java.io.IOException
+import java.text.SimpleDateFormat
+import java.util.Date
 
 class MainActivity : ComponentActivity() {
     private val SENSOR_PERMISSION_REQUEST_CODE = 1
@@ -37,13 +41,14 @@ class MainActivity : ComponentActivity() {
     private lateinit var sensorManager: SensorManager
     private lateinit var accelerometerSensor: Sensor
     private lateinit var sensorEventListener: SensorEventListener
-    private var sensorData: String = ""
+    private val viewModel: SensorDataViewModel by viewModels()
+    private val sdf = SimpleDateFormat("dd/MM/yyyy HH:mm:ss.SSS")
+    private var now: Date? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
             SensTheme {
-                // A surface container using the 'background' color from the theme
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
@@ -51,8 +56,11 @@ class MainActivity : ComponentActivity() {
                     Greeting("Android")
                 }
             }
-            GreetingAndSensorData()
+
+            // Display the sensor data Composable
+            DisplaySensorData(viewModel.sensorData)
         }
+
         // Request sensor permission when the activity is created
         requestSensorPermission()
 
@@ -83,7 +91,7 @@ class MainActivity : ComponentActivity() {
                 override fun onSensorChanged(event: SensorEvent) {
                     // Handle sensor data here
                     val sensorValues = event.values.joinToString(", ")
-                    sensorData = "Sensor Data: $sensorValues"  // Update the greeting text
+                    viewModel.sensorData = "Sensor Data: $sensorValues"  // Update the greeting text
                     writeToSensorDataFile(event.values)  // Write data to the file
                 }
 
@@ -107,13 +115,28 @@ class MainActivity : ComponentActivity() {
         try {
             val file = File(getExternalFilesDir(null), "sensor_data.txt")
             val writer = FileWriter(file, true) // Append data to the file
-            writer.write(sensorData.joinToString(", ") + "\n")
+
+            now = Date()
+            writer.write("[" + sdf.format(now) + "] " + sensorData.joinToString(", ") + "\n")
 
             writer.close()
         } catch (e: IOException) {
             e.printStackTrace()
         }
     }
+}
+
+@Composable
+fun DisplaySensorData(sensorData: String) {
+    LaunchedEffect(sensorData) {
+        // This block will be executed whenever sensorData changes
+        // Update the UI to display the new sensorData
+    }
+
+    Text(
+        text = sensorData,
+        modifier = Modifier.padding(16.dp)
+    )
 }
 
 @Composable
@@ -129,26 +152,5 @@ fun Greeting(name: String, modifier: Modifier = Modifier) {
 fun GreetingPreview() {
     SensTheme {
         Greeting("Android")
-    }
-}
-
-@Composable
-fun GreetingAndSensorData() {
-    var sensorData by remember { mutableStateOf("") }
-
-    Column {
-        Text(text = sensorData)  // Display sensor data
-
-        Button(
-            onClick = {
-                // Update sensor data for testing
-                sensorData = "Sensor Data: 1.0, 2.0, 3.0"
-            },
-            modifier = Modifier.padding(16.dp)
-        ) {
-            Text(text = "Change Sensor Data")
-        }
-
-        // ...
     }
 }
