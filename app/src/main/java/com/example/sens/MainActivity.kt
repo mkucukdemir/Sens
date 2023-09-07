@@ -48,16 +48,15 @@ class MainActivity : ComponentActivity() {
     private val SENSOR_PERMISSION_REQUEST_CODE = 1
     private val STORAGE_PERMISSION_REQUEST_CODE = 123
     private lateinit var sensorManager: SensorManager
-    private val viewModel: SensorDataViewModel by viewModels()
     private val sdf = SimpleDateFormat("dd/MM/yyyy HH:mm:ss.SSS")
 
     private lateinit var accelerometerSensor: Sensor
     private lateinit var gyroscopeSensor: Sensor
     private lateinit var locationManager: LocationManager
 
-    private lateinit var accelerometer_writer:FileWriter
-    private lateinit var gyroscope_writer:FileWriter
-    private lateinit var gps_writer:FileWriter
+    private val accelerometerLock = ReentrantLock()
+    private val gyroscopeLock = ReentrantLock()
+    private val gpsLock = ReentrantLock()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -71,26 +70,13 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
-            // Display the sensor data Composable
-            DisplaySensorData(viewModel.sensorData)
         }
-        // Files to write data
-        accelerometer_writer =  FileWriter(File(Environment.getExternalStorageDirectory(), "accelerometer_data.txt"), true)
-        gyroscope_writer =  FileWriter(File(Environment.getExternalStorageDirectory(), "gyroscope_data.txt"), true)
-        gps_writer = FileWriter(File(Environment.getExternalStorageDirectory(), "gps_data.txt"), true)
 
         // Request sensor permission when the activity is created
         requestSensorPermission()
 
         // Start sensor data collection
         startSensorDataCollection()
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
-        accelerometer_writer.close()
-        gyroscope_writer.close()
-        gps_writer.close()
     }
 
     private fun requestSensorPermission() {
@@ -132,7 +118,7 @@ class MainActivity : ComponentActivity() {
                 override fun onSensorChanged(event: SensorEvent) {
                     val sensorValues = event.values.joinToString(", ")
                     val sensorData = "$sensorValues"
-                    writeDataToFile(sensorData, accelerometer_writer)
+                    writeDataToFile(sensorData, "accelerometer_data.txt", accelerometerLock)
                 }
 
                 override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {
@@ -144,7 +130,7 @@ class MainActivity : ComponentActivity() {
                 override fun onSensorChanged(event: SensorEvent) {
                     val sensorValues = event.values.joinToString(", ")
                     val sensorData = "$sensorValues"
-                    writeDataToFile(sensorData, gyroscope_writer)
+                    writeDataToFile(sensorData, "gyroscope_data.txt", gyroscopeLock)
                 }
 
                 override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {
@@ -155,7 +141,7 @@ class MainActivity : ComponentActivity() {
             val locationListener = object : LocationListener {
                 override fun onLocationChanged(location: Location) {
                     val locationData = "${location.latitude}, ${location.longitude}"
-                    writeDataToFile(locationData, gps_writer)
+                    writeDataToFile(locationData, "gps_data.txt", gpsLock)
                 }
 
                 override fun onProviderEnabled(provider: String) {}
@@ -196,35 +182,28 @@ class MainActivity : ComponentActivity() {
         sensorThread.start()
     }
 
-    private fun writeDataToFile(data: String, writer: FileWriter) {
+    private fun writeDataToFile(data: String, fileName: String, lock: ReentrantLock) {
+        lock.lock()
         //println(data)
         try {
+            val file = File(Environment.getExternalStorageDirectory(), fileName)
+            val writer = FileWriter(file, true) // Append data to the file
+
             writer.write(sdf.format(Date()) + " " + data + "\n")
+
+            writer.close()
         } catch (e: IOException) {
             e.printStackTrace()
         } finally {
-
+            lock.unlock()
         }
     }
 }
 
 @Composable
-fun DisplaySensorData(sensorData: String) {
-    LaunchedEffect(sensorData) {
-        // This block will be executed whenever sensorData changes
-        // Update the UI to display the new sensorData
-    }
-
-    Text(
-        text = sensorData,
-        modifier = Modifier.padding(16.dp)
-    )
-}
-
-@Composable
 fun Greeting(name: String, modifier: Modifier = Modifier) {
     Text(
-        text = "Sensor data is being written on your local drive",
+        text = "Running",
         modifier = modifier
     )
 }
